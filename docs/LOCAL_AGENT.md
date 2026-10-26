@@ -4,6 +4,8 @@ ProcureFlow's agent runs inside this project. It answers procurement questions b
 
 The optional Qwen model runs through a local llama.cpp process. No cloud inference service or API key is used. The orchestration, business tools, grounding, conversation storage, and permission boundaries are implemented in this repository; Qwen is a third-party pretrained model, not a model trained by this project.
 
+Model attribution and technical details are available in the [official Qwen2.5-1.5B-Instruct GGUF model card](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF). The downloaded license is retained as `models/QWEN-LICENSE.txt`; inference uses the [llama.cpp runtime](https://github.com/ggml-org/llama.cpp).
+
 ## Two honest execution modes
 
 | Mode | Planning | Answers and numbers |
@@ -52,6 +54,10 @@ Model status performs a short health probe. Inference has a configurable timeout
 | --- | --- |
 | `Why reorder CF001?` / `Tại sao cần mua CF-001?` | Current stock, reservations, exact policy quantity, demand window, target stock, pack rounding |
 | `What is its cost?` / `Chi phí bao nhiêu?` | Continues the previous SKU; current recommendation value and saved draft value |
+| `Giá` / `gia` / `Bao nhiêu tiền?` / `Chi phí?` | With SKU context: reference unit cost, recommended quantity, and estimated replenishment value; without context: explicitly scoped workspace replenishment budget |
+| `Còn hàng không?` | Available stock after reservations, with the current SKU context or the workspace inventory overview |
+| `Tại sao phải nhập thêm?` | Replenishment explanation for the contextual SKU; otherwise the highest-value workspace recommendations with their scope stated |
+| `Nhà cung cấp nào?` | Supplier evidence for the contextual SKU, or the supplier list when no SKU was selected |
 | `Show stock risk for all SKUs` / `Rủi ro tồn kho của tất cả SKU?` | Stock classifications and open exceptions; resets the SKU context |
 | `Show supplier lead time for RM-005` | Supplier master and the SKU-specific lead time actually used by the policy |
 | `Show pending requests` / `Những đơn nào chờ phê duyệt?` | Persisted request statuses, quantities, and saved cost snapshots |
@@ -61,7 +67,11 @@ Model status performs a short health probe. Inference has a configurable timeout
 
 Unknown SKU codes produce a clear validation error. Recognized SKU codes accept compact forms such as `CF001` and `RM005`. A conversation remembers its SKU and analysis date until the next question explicitly changes them or asks for all SKUs.
 
+Short accented and unaccented Vietnamese questions use complete token matches. `gia` means price; it does not match `giao hàng` (supplier delivery) or `giải thích` (explanation). SKU forms such as `CF001`, `cf_001`, and `CF 001` resolve to the same canonical SKU. The model cannot choose an arbitrary catalog SKU for an unscoped question; only an explicit identifier, a supplied SKU filter, or the saved conversation context establishes that scope.
+
 The analysis date changes the historical sales window. Inventory facts use current balances. Historical demand comparisons are descriptive changes, not demand forecasts. Draft valuations and current replenishment valuations are reported separately and are not added together as spending.
+
+Coffee-workspace records describe synthetic material withdrawals, not actual company sales. The existing `sales` storage table supplies those per-SKU consumption signals. Inventory, replenishment quantities, reference unit costs, and demand history use each product's `unit_of_measure` (`kg`, `piece`, `carton`, or `roll`); legacy products retain `unit`. The agent never adds physical quantities across SKUs with different units. Workspace budget totals add VND values, while stock summaries count SKUs by risk.
 
 ## Execution and permissions
 

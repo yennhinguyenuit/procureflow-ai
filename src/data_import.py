@@ -25,7 +25,8 @@ DATASET_HEADERS: dict[str, list[str]] = {
     'inventory': ['sku', 'on_hand', 'on_order', 'reserved_qty'],
     'products': ['sku', 'product_name', 'supplier', 'lead_time_days',
                  'safety_stock', 'pack_size', 'unit_cost_vnd', 'on_hand',
-                 'on_order', 'reserved_qty'],
+                 'on_order', 'reserved_qty', 'category', 'unit_of_measure',
+                 'origin', 'quality_notes'],
     'suppliers': ['name', 'lead_time_days', 'contact_email'],
 }
 _REQUIRED = {
@@ -39,6 +40,11 @@ _NUMERIC = {'units', 'on_hand', 'on_order', 'reserved_qty', 'lead_time_days',
             'safety_stock', 'pack_size', 'unit_cost_vnd'}
 MAX_FILE_BYTES = 2_000_000
 MAX_ROWS = 10_000
+PRODUCT_METADATA_DEFAULTS = {
+    'category': 'Unclassified', 'unit_of_measure': 'unit', 'origin': '', 'quality_notes': '',
+}
+MATERIAL_UNITS = frozenset({'unit', 'piece', 'kg', 'carton', 'roll'})
+_TEXT_LIMITS = {'category': 100, 'unit_of_measure': 20, 'origin': 120, 'quality_notes': 500}
 
 
 def _missing(value: Any) -> bool:
@@ -124,6 +130,11 @@ def _validate(rows: list[dict[str, Any]], dataset: str, as_of: date) -> list[dic
     for number, row in enumerate(rows, start=2):
         parsed: dict[str, Any] = {}
         for field, value in row.items():
+            if dataset == 'products' and field in {
+                    'on_hand', 'on_order', 'reserved_qty', 'category', 'unit_of_measure'} and _missing(value):
+                # Optional template cells act like absent columns: preserve
+                # the stored master or let a new SKU use its safe defaults.
+                continue
             if field in _NUMERIC:
                 if dataset == 'suppliers' and _missing(value):
                     parsed[field] = None
@@ -150,14 +161,19 @@ def _validate(rows: list[dict[str, Any]], dataset: str, as_of: date) -> list[dic
                     if field == 'contact_email':
                         parsed[field] = None
                         continue
+                    if field in {'origin', 'quality_notes'}:
+                        parsed[field] = ''
+                        continue
                     raise ValueError(f'Missing {field} at row {number}')
                 if not isinstance(value, str):
                     raise ValueError(f'{field} must be text at row {number}')
                 text = value.strip()
                 if field == 'sku' and re.fullmatch(SKU_PATTERN, text) is None:
                     raise ValueError(f'Invalid SKU at row {number}; use 1-64 letters, digits, dot, underscore or hyphen')
-                if len(text) > 200 or any(ord(c) < 32 for c in text):
+                if len(text) > _TEXT_LIMITS.get(field, 200) or any(ord(c) < 32 for c in text):
                     raise ValueError(f'Invalid or overly long {field} at row {number}')
+                if field == 'unit_of_measure' and text not in MATERIAL_UNITS:
+                    raise ValueError(f'Unsupported unit_of_measure at row {number}; use unit, piece, kg, carton, or roll')
                 if field == 'contact_email' and ('@' not in text or ' ' in text):
                     raise ValueError(f'Invalid contact_email at row {number}')
                 parsed[field] = text
@@ -225,7 +241,9 @@ def import_dataset(conn: Connection, raw: bytes, filename: str, dataset: str,
                 key = 'name' if dataset == 'suppliers' else 'sku'
                 stored = conn.execute(f'SELECT * FROM {dataset} WHERE {key}=?', (row[key],)).fetchone()
                 if dataset == 'products':
-                    values = dict(stored) if stored else {'on_hand': 0, 'on_order': 0, 'reserved_qty': 0}
+                    values = dict(stored) if stored else {
+                        'on_hand': 0, 'on_order': 0, 'reserved_qty': 0, **PRODUCT_METADATA_DEFAULTS,
+                    }
                     values.update(row)
                 elif dataset == 'inventory':
                     values = {**row, 'reserved_qty': row.get('reserved_qty', 0)}
@@ -234,6 +252,12 @@ def import_dataset(conn: Connection, raw: bytes, filename: str, dataset: str,
                     values.update(row)
                 if stored and all(stored[field] == value for field, value in values.items()):
                     continue
+                if dataset == 'products' and stored and values.get('unit_of_measure') != stored['unit_of_measure']:
+                    historical = conn.execute('SELECT 1 FROM sales WHERE sku=? LIMIT 1', (row['sku'],)).fetchone()
+                    requested = conn.execute('SELECT 1 FROM proposals WHERE sku=? LIMIT 1', (row['sku'],)).fetchone()
+                    if historical or requested or any(stored[field] for field in ('on_hand', 'on_order', 'reserved_qty')):
+                        raise ValueError(f'Cannot change the base unit for {row["sku"]} with stock or recorded history; '
+                                         'use a new SKU or a separate workspace. Automatic unit conversion is not supported.')
                 if dataset in {'inventory', 'products'} and stored:
                     approved = conn.execute("SELECT 1 FROM proposals WHERE sku=? AND status='APPROVED' LIMIT 1",
                                             (row['sku'],)).fetchone()

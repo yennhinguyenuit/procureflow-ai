@@ -29,9 +29,17 @@ class Product(Base):
     safety_stock: Mapped[int] = mapped_column(Integer, nullable=False)
     pack_size: Mapped[int] = mapped_column(Integer, nullable=False)
     unit_cost_vnd: Mapped[int] = mapped_column(Integer, nullable=False)
+    category: Mapped[str] = mapped_column(String(100), nullable=False, server_default='Unclassified')
+    unit_of_measure: Mapped[str] = mapped_column(String(20), nullable=False, server_default='unit')
+    origin: Mapped[str] = mapped_column(String(120), nullable=False, server_default='')
+    quality_notes: Mapped[str] = mapped_column(String(500), nullable=False, server_default='')
     __table_args__ = tuple(CheckConstraint(f'{field} >= {minimum}') for field, minimum in (
         ('on_hand', 0), ('on_order', 0), ('reserved_qty', 0), ('lead_time_days', 1),
-        ('safety_stock', 0), ('pack_size', 1), ('unit_cost_vnd', 0)))
+        ('safety_stock', 0), ('pack_size', 1), ('unit_cost_vnd', 0))) + (
+        CheckConstraint("unit_of_measure IN ('unit','piece','kg','carton','roll')"),
+        CheckConstraint('length(category) BETWEEN 1 AND 100'),
+        CheckConstraint('length(origin) <= 120'), CheckConstraint('length(quality_notes) <= 500'),
+    )
 
 
 class Inventory(Base):
@@ -63,6 +71,8 @@ class Proposal(Base):
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     unit_cost_vnd: Mapped[int] = mapped_column(Integer, nullable=False, server_default='0')
     supplier: Mapped[str] = mapped_column(String, nullable=False, server_default='')
+    category: Mapped[str] = mapped_column(String, nullable=False, server_default='Unclassified')
+    unit_of_measure: Mapped[str] = mapped_column(String, nullable=False, server_default='unit')
     snapshot_json: Mapped[str | None] = mapped_column(Text)
     max_quantity: Mapped[int | None] = mapped_column(Integer)
     max_value_vnd: Mapped[int | None] = mapped_column(Integer)

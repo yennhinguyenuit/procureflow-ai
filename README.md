@@ -1,8 +1,8 @@
-# ProcureFlow AI
+# ProcureFlow
 
-A local procurement workspace with a custom React interface, persistent Python workflows, and a private AI agent powered by a local Qwen model.
+A coffee procurement and inventory workspace with a premium React interface, persistent Python workflows, and a local operational assistant.
 
-Inventory, purchasing, suppliers, analytics, and operational history live in one application. The agent retrieves your workspace data and explains the numbers with visible source references. **No Gemini, cloud inference, API key, or paid AI subscription is required.**
+Inventory, purchasing, suppliers, analytics, and operational history live in one application. The assistant retrieves workspace facts with source references and uses Qwen locally for intent planning. No cloud inference, API key, or paid AI subscription is required.
 
 Academic case study using synthetic data. Not affiliated with or endorsed by Trung Nguyen Legend or Bosch. Internal approvals do not send supplier orders or payments.
 
@@ -12,15 +12,15 @@ Academic case study using synthetic data. Not affiliated with or endorsed by Tru
 
 ![Inventory](docs/screenshots/workspace-inventory.png)
 
-![Local AI workspace](docs/screenshots/workspace-ai.png)
+![Operational Assistant](docs/screenshots/workspace-ai.png)
 
-The interface includes eight pages: Overview, Inventory, Purchase requests, Suppliers, AI workspace, Analytics, Activity, and Settings. It uses a consistent visual system, local Inter fonts, Lucide icons, responsive layouts, custom Recharts charts, searchable tables, status badges, slide-out details, validation messages, and progress states.
+The interface includes eight pages: Overview, Inventory, Purchase requests, Suppliers, Operational Assistant, Analytics, Activity, and Settings. Warm ivory, charcoal, espresso accents, local Inter fonts, consistent spacing, searchable tables, and restrained charts form a single design system.
 
-- **Overview:** live metrics, demand history, inventory health, replenishment priorities, and next steps.
-- **Inventory:** search and filters, stock details, explainable calculations, editable balances, CSV/Excel imports.
+- **Overview:** compact operational metrics, demand history, stock classification, replenishment priorities, and recent changes.
+- **Inventory:** category/risk filters, sorting, stock/replenishment views, material metadata, historical demand, editable balances, and CSV/Excel imports.
 - **Purchase requests:** draft generation, duplicate prevention, saved quantities/costs, required review reasons, approval/rejection.
 - **Suppliers:** directory, associated products, contact details, reference lead times, contextual imports.
-- **AI workspace:** English/Vietnamese conversations, persistent follow-up context, source cards, tool traces, local execution status.
+- **Operational Assistant:** English/Vietnamese conversations, short-query support, persistent context, expandable evidence, and discreet technical details.
 - **Analytics:** demand and recorded stock trends, supplier lead times, request status, Excel/CSV reports.
 - **Activity:** searchable events, approval history, exceptions, and before/after evidence.
 - **Settings:** persistent operator/workspace preferences and local engine information.
@@ -29,13 +29,15 @@ The interface includes eight pages: Overview, Inventory, Purchase requests, Supp
 
 Dependencies, the frontend build, llama.cpp, and the local Qwen model have been installed in this workspace.
 
-Double-click **run.bat**, or execute from the project root:
+Double-click **run-coffee.bat** to open the separate synthetic coffee scenario, or execute:
 
 ```powershell
-.\.venv\Scripts\python.exe -m scripts.run
+.\.venv\Scripts\python.exe -m scripts.run --coffee
 ```
 
-Open **http://127.0.0.1:8000**. The launcher starts the available local model and web application. No Node development server is required after building. Stop the terminal with Ctrl+C to stop the launcher and any model process it started.
+Open **http://127.0.0.1:8002** for the separate coffee workspace. Normal startup without `--coffee` retains port 8000 and the existing configured database. Pass `--port` to choose another port. The launcher starts the available local model and web application. No Node development server is required after building. Stop the terminal with Ctrl+C to stop the launcher and any model process it started.
+
+The `--coffee` option selects `outputs/coffee-workspace.db`; it never replaces `procureflow.db`. Without that option, `run.bat` and `python -m scripts.run` keep the existing workspace. Existing user records are not relabeled as coffee materials.
 
 The former Streamlit interface remains available as a compatibility UI; the React workspace above is the primary application.
 
@@ -51,7 +53,7 @@ npm.cmd ci
 npm.cmd run build
 Set-Location ..
 .\.venv\Scripts\python.exe -m scripts.setup_local_ai
-.\.venv\Scripts\python.exe -m scripts.run
+.\.venv\Scripts\python.exe -m scripts.run --coffee
 ```
 
 If the Windows `python` command points to MSYS or an older interpreter, use the path to a Windows Python 3.11+ installation when creating the environment. On the verified machine:
@@ -65,7 +67,7 @@ The model installer downloads approximately 1.12 GB of Qwen2.5 1.5B Instruct Q4_
 To run all business features and the local tool agent without loading a language model:
 
 ```powershell
-.\.venv\Scripts\python.exe -m scripts.run --without-model
+.\.venv\Scripts\python.exe -m scripts.run --coffee --without-model
 ```
 
 ## Your local agent
@@ -79,6 +81,8 @@ Try:
 - “Why reorder CF-001?”
 - “Tại sao cần mua CF-001?”
 - “Chi phí bao nhiêu?” as a follow-up.
+- “Giá”, “Bao nhiêu tiền?”, or “Chi phí?” for the selected material's price.
+- “Còn hàng không?”, “Tại sao phải nhập thêm?”, or “Nhà cung cấp nào?” as follow-ups.
 - “Show stock risk for all SKUs.”
 - “Những đề xuất nào đang chờ phê duyệt?”
 - “Show demand trends for RM-005.”
@@ -157,6 +161,8 @@ Risk categories are Healthy, Low stock, Critical, and Needs data in the interfac
 
 Generate creates saved drafts and skips SKUs with draft or approved requests. Approval requires a reviewer and reason, rechecks the saved inputs, increments on-order once, and records history. Changed inputs make a draft stale; it can be rejected and regenerated. No supplier purchase order is transmitted.
 
+Requests retain their original unit/category along with cost and supplier. A material's base unit cannot change after stock or recorded history exists; the system does not reinterpret kg as cartons or silently convert historical quantities.
+
 The analysis date selects the demand window; calculations use **current inventory balances**. Demand comparisons are descriptive history, not forecasts. Audit timestamps are UTC and the business date uses Vietnam time.
 
 ## Imports and reports
@@ -176,7 +182,19 @@ Identical imports are no-ops. Changed masters and balances retain audit evidence
 
 ## Data and repeatable scenario
 
-The default database starts with six synthetic SKUs, three suppliers, and 84 days of generated demand/stock history. Existing populated databases are preserved. To create a separate fixed-date database:
+The new `data/coffee/` scenario contains 12 green-coffee, roasted-input, packaging, and accessory materials from six explicitly fictional suppliers. It preserves identifiers such as `CF-001` in its own separate database. Its `sales` rows are synthetic material withdrawals, not real company transactions. Quantities are whole base units; mixed physical units are never summed into a single chart/KPI total.
+
+Create another clean coffee workspace explicitly:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.seed_coffee --db outputs/coffee-interview-02.db --as-of 2026-10-26
+$env:PROCUREFLOW_DB_PATH="outputs/coffee-interview-02.db"
+.\.venv\Scripts\python.exe -m scripts.run
+```
+
+The seeder refuses every existing target file. Do not import these scenario files over an existing business workspace. Source-backed material terminology and clearly identified assumptions are documented in [RESEARCH_SOURCES.md](docs/RESEARCH_SOURCES.md).
+
+The retained original workspace starts with six synthetic SKUs, three suppliers, and 84 days of generated demand/stock history. Existing populated databases are preserved. To create another original six-SKU fixed-date database:
 
 ```powershell
 .\.venv\Scripts\python.exe -m src.seed --db interview-02.db --as-of 2026-10-26
@@ -197,7 +215,9 @@ See [walkthrough](docs/DEMO_SCRIPT.md).
 ## Verification
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest -q
+$testTemp = Join-Path ([IO.Path]::GetTempPath()) ("ProcureFlow_QA_" + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $testTemp -Force | Out-Null
+.\.venv\Scripts\python.exe -m pytest -q --basetemp=$testTemp -p no:cacheprovider
 .\.venv\Scripts\python.exe -m pip check
 Set-Location frontend
 npm.cmd run build
@@ -206,6 +226,12 @@ npm.cmd run build
 Tests cover policy arithmetic, imports, concurrent duplicate prevention, stale reviews, persistence, reports, API routes, local-agent plans and conversation context, cloud-call exclusion, and the retained Streamlit compatibility UI. They use temporary databases and mocked inference.
 
 Actual local model inference and real React browser workflows were also checked separately. See [executed verification](docs/VERIFICATION.md). No coverage percentage or business improvement has been claimed.
+
+## Research and visual identity
+
+Official company pages support Robusta/Arabica/Culi terminology, selected origin examples, and the historical white/black identity direction. All supplier identities, quantities, costs, leads, and commercial records in the coffee scenario are synthetic assumptions. See [research evidence](docs/RESEARCH_SOURCES.md).
+
+No authorization to bundle an official company logo was established. The default wordmark is neutral ProcureFlow; a documented [authorized local asset slot](frontend/public/brand/README.md) preserves image proportions if permission is later supplied. The interface retains an accessible academic/non-affiliation notice. Design tokens, contrast, charts, and interaction rules are documented in [DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md).
 
 GitHub Actions is configured for Python tests on Windows/Linux with Python 3.11/3.13, plus a frontend build. Remote runs remain unverified until the repository is pushed.
 

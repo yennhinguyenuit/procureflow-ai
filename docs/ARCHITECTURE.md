@@ -1,13 +1,13 @@
 # Architecture and data contracts
 
-ProcureFlow AI is a local academic prototype using synthetic data. It is not affiliated with or endorsed by Trung Nguyen Legend. The application records internal replenishment reviews; it never sends supplier orders or payments.
+ProcureFlow is a local academic prototype using synthetic data. It is not affiliated with or endorsed by Trung Nguyen Legend. The application records internal replenishment reviews; it never sends supplier orders or payments.
 
 ## Components and data flow
 
 ```mermaid
 flowchart TD
     User[Demo operator or reviewer] --> UI[React and TypeScript: frontend/src]
-    UI --> API[FastAPI on 127.0.0.1:8000: src/api.py]
+    UI --> API[Local FastAPI: src/api.py]
     Files[CSV or single-sheet XLSX] --> Import[Validated atomic imports: src/data_import.py]
     API --> Import
     Import --> Storage[SQLAlchemy engine and declarative schema: src/database.py and src/models.py]
@@ -39,7 +39,7 @@ flowchart TD
     Settings --> DB
 ```
 
-`scripts/run.py` starts the primary application and the installed optional local model; `run.bat` is the Windows shortcut. FastAPI serves the built `frontend/dist` assets and JSON endpoints on the same local origin. React provides eight pages: Overview, Inventory, Purchase requests, Suppliers, AI workspace, Analytics, Activity, and Settings. Hash navigation uses paths such as `/#inventory` and `/#ai`. Local Inter font files, Lucide icons, and Recharts supply the visual system without external font requests. During development, Vite on port 5173 proxies API calls to port 8000.
+`scripts/run.py` starts the primary application and the installed optional local model; `run.bat` is the Windows shortcut. FastAPI serves the built `frontend/dist` assets and JSON endpoints on the same local origin. React provides eight pages: Overview, Inventory, Purchase requests, Suppliers, Operational Assistant, Analytics, Activity, and Settings. Hash navigation uses paths such as `/#inventory` and `/#ai`. Local Inter font files, Lucide icons, and Recharts supply the visual system without external font requests. During development, Vite on port 5173 proxies API calls to port 8000.
 
 `src/api.py` handles validated HTTP contracts, persistent preferences, and application startup. `src/procurement.py` owns arithmetic, draft creation, exceptions, and decisions. `src/data_import.py` validates whole files before committing changes. `src/local_agent.py` orchestrates local intent planning and read-only business tools; its only writes are conversation records. `src/reporting.py` produces spreadsheet-safe exports. `src/ai_assistant.py` retains the starter's offline summary interface without a cloud adapter. The optional Streamlit compatibility interface remains in `app.py` and `src/ui.py`. `scripts/demo.py` independently replays the business workflow into a new persistent output folder.
 
@@ -59,6 +59,10 @@ erDiagram
     products {
         string sku PK
         string product_name
+        string category
+        string unit_of_measure
+        string origin
+        string quality_notes
         string supplier "validated supplier name; no SQL foreign key"
         int lead_time_days
         int safety_stock
@@ -90,6 +94,8 @@ erDiagram
         int quantity
         int unit_cost_vnd "saved cost"
         string supplier "saved supplier name"
+        string category "saved material category"
+        string unit_of_measure "saved base unit"
         string snapshot_json
         int max_quantity
         int max_value_vnd
@@ -265,3 +271,18 @@ CSV and Excel reports contain the nine business tables plus a dated replenishmen
 - Seed history, demand changes, and costs are synthetic; no operational improvement percentages or savings have been measured.
 - Audit triggers do not defend against a database administrator. Backups, retention governance, and production security require additional work.
 - A local model and successful local checks do not establish general model accuracy or enterprise deployment readiness. GitHub-hosted CI remains unverified until an actual remote run exists. See [VERIFICATION.md](VERIFICATION.md) for executed evidence.
+
+
+## Premium coffee workspace upgrade
+
+The existing React, FastAPI, SQLAlchemy/SQLite, workflow, and local Qwen architecture is retained. The visual layer uses warm ivory, charcoal, espresso accents, and neutral ProcureFlow branding. Model diagnostics are accessible in advanced sections. See DESIGN_SYSTEM.md and RESEARCH_SOURCES.md.
+
+Products add optional category (Unclassified), unit_of_measure (unit), origin (empty), and quality_notes (empty) through additive migrations. Existing identities, balances, demand, decisions, and audit records are preserved. Old imports remain valid. Omitted metadata is preserved on update; empty optional stock/category/unit cells behave as omitted fields. Supported whole base units are unit, kg, piece, carton, and roll.
+
+Requests freeze original category and base unit alongside supplier, cost, and numerical evidence. Legacy requests retain their generic unit interpretation. Approval detects a changed unit, and imports cannot change a material's base unit once stock or recorded history exists. No historical relabeling or automatic mass conversion occurs.
+
+scripts/seed_coffee.py builds a separate validated 12-material, six-fictional-supplier reference database and refuses every existing target file. Its 84 days of sales rows represent simulated material withdrawals in the compatible demand schema. Snapshots explicitly model synthetic depletion without receipts. All commercial values are illustrative. Shared identifiers such as CF-001 belong to this separate scenario; existing workspaces are never relabeled.
+
+python -m scripts.run --coffee explicitly selects outputs/coffee-workspace.db; normal startup keeps the configured existing database. run-coffee.bat exposes that separate choice. Physical charts filter one compatible unit at a time. VND valuations and material counts can be aggregated; mixed physical units cannot.
+
+The Operational Assistant uses whole-token Vietnamese recognition, resolved SKU context, constrained local model planning, and deterministic read-only tools. Short questions retain the selected material. Price tokens do not match delivery/interpretation words such as giao and giai. Actual local_model/local_tools metadata remains accessible with evidence. Procurement writes remain outside assistant permissions.

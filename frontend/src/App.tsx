@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Activity, ArrowRight, ArrowUpRight, Building2, CalendarDays, Check, ChevronDown, ChevronRight, CircleHelp, Command, FileCheck2, LayoutDashboard, LoaderCircle, Menu, Package, Plus, Search, Settings2, ShieldCheck, Sparkles, TrendingUp, X } from 'lucide-react'
+import { Activity, ArrowUpRight, Building2, CalendarDays, Check, ChevronRight, CircleHelp, ClipboardList, Database, FileCheck2, LayoutDashboard, Menu, Package, Search, Settings2, ShieldCheck, TrendingUp, X } from 'lucide-react'
 import { api } from './api'
-import { Brand, Button, displayDate, Empty, initials, Modal, ProductAvatar } from './components'
+import { Brand, Button, Empty, initials, Modal, ProductAvatar } from './components'
 import type { InventoryRow, Page, Proposal, Workspace } from './types'
 import type { PageProps } from './appTypes'
 import Overview from './Overview'
@@ -10,42 +10,112 @@ import { ActivityPage, AnalyticsPage, SettingsPage } from './InsightsPages'
 import AIWorkspace from './AIWorkspace'
 import { ImportDialog, InventoryDrawer, RequestDrawer } from './WorkflowDialogs'
 
-const navigation:{id:Page;label:string;icon:typeof Package}[]=[{id:'overview',label:'Overview',icon:LayoutDashboard},{id:'inventory',label:'Inventory',icon:Package},{id:'requests',label:'Purchase requests',icon:FileCheck2},{id:'suppliers',label:'Suppliers',icon:Building2},{id:'ai',label:'AI workspace',icon:Sparkles},{id:'analytics',label:'Analytics',icon:TrendingUp},{id:'activity',label:'Activity',icon:Activity}]
-const pageNames:Record<Page,string>={overview:'Overview',inventory:'Inventory',requests:'Purchase requests',suppliers:'Suppliers',ai:'AI workspace',analytics:'Analytics',activity:'Activity',settings:'Settings'}
-function currentPage():Page {const value=window.location.hash.replace(/^#\/?/,'');return Object.keys(pageNames).includes(value)?value as Page:'overview'}
+const navigation: {id: Page; label: string; icon: typeof Package}[] = [
+  {id:'overview',label:'Overview',icon:LayoutDashboard}, {id:'inventory',label:'Inventory',icon:Package},
+  {id:'requests',label:'Purchase requests',icon:FileCheck2}, {id:'suppliers',label:'Suppliers',icon:Building2},
+  {id:'ai',label:'Operational Assistant',icon:ClipboardList}, {id:'analytics',label:'Analytics',icon:TrendingUp},
+  {id:'activity',label:'Activity',icon:Activity},
+]
+const pageNames: Record<Page,string> = {overview:'Overview',inventory:'Inventory',requests:'Purchase requests',suppliers:'Suppliers',ai:'Operational Assistant',analytics:'Analytics',activity:'Activity',settings:'Settings'}
+function currentPage(): Page {
+  const value = window.location.hash.replace(/^#\/?/, '')
+  return Object.keys(pageNames).includes(value) ? value as Page : 'overview'
+}
 
 export default function App() {
-  const [page,setPage]=useState<Page>(currentPage);const [data,setData]=useState<Workspace|null>(null);const [date,setDate]=useState('');const [loading,setLoading]=useState(true);const [refreshing,setRefreshing]=useState(false);const [error,setError]=useState('');const [generating,setGenerating]=useState(false);const [mobile,setMobile]=useState(false);const [importOpen,setImportOpen]=useState(false);const [inventory,setInventory]=useState<InventoryRow|null>(null);const [proposal,setProposal]=useState<Proposal|null>(null);const [help,setHelp]=useState(false);const [search,setSearch]=useState('');const [toast,setToast]=useState<{message:string;kind:'success'|'error'}|null>(null);const searchRef=useRef<HTMLInputElement>(null);const searchWrap=useRef<HTMLDivElement>(null)
-  const [importDataset,setImportDataset]=useState('inventory')
-  const selectedDate=date||data?.as_of||new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Ho_Chi_Minh'})
-  const notify=useCallback((message:string,kind:'success'|'error'='success')=>setToast({message,kind}),[])
-  const load=useCallback(async()=>{setRefreshing(true);try{const result=await api.workspace(date||undefined);setData(result);setError('')}catch(error){setError((error as Error).message)}finally{setLoading(false);setRefreshing(false)}},[date])
-  useEffect(()=>{load()},[load])
-  useEffect(()=>{const handler=()=>{setPage(currentPage());setMobile(false);setInventory(null);setProposal(null);setImportOpen(false);setHelp(false);setSearch('');window.scrollTo({top:0,behavior:'instant'})};window.addEventListener('hashchange',handler);return()=>window.removeEventListener('hashchange',handler)},[])
-  useEffect(()=>{if(!toast)return;const timer=setTimeout(()=>setToast(null),5500);return()=>clearTimeout(timer)},[toast])
-  useEffect(()=>{function shortcut(event:KeyboardEvent){const tag=(event.target as HTMLElement).tagName;if(event.key==='/'&&!['INPUT','TEXTAREA','SELECT'].includes(tag)){event.preventDefault();searchRef.current?.focus()}if(event.key==='Escape'){setSearch('');setMobile(false)}}function outside(event:MouseEvent){if(searchWrap.current&&!searchWrap.current.contains(event.target as Node))setSearch('')}document.addEventListener('keydown',shortcut);document.addEventListener('mousedown',outside);return()=>{document.removeEventListener('keydown',shortcut);document.removeEventListener('mousedown',outside)}},[])
-  function navigate(value:Page){if(page===value)setMobile(false);window.location.hash=value;setPage(value);setMobile(false)}
-  async function generate(){if(!data)return;setGenerating(true);try{const result=await api.generate(selectedDate,data.settings.operator_name);await load();notify(result.message||`${result.created} purchase request drafts created.`)}catch(error){notify((error as Error).message,'error')}finally{setGenerating(false)}}
-  const props:PageProps|undefined=data?{data,date:selectedDate,navigate,refresh:load,notify,openImport:(dataset='inventory')=>{setImportDataset(dataset);setImportOpen(true)},openInventory:setInventory,openRequest:setProposal,generate,generating}:undefined
+  const [page,setPage] = useState<Page>(currentPage)
+  const [data,setData] = useState<Workspace|null>(null)
+  const [date,setDate] = useState('')
+  const [loading,setLoading] = useState(true)
+  const [refreshing,setRefreshing] = useState(false)
+  const [error,setError] = useState('')
+  const [generating,setGenerating] = useState(false)
+  const [mobile,setMobile] = useState(false)
+  const [importOpen,setImportOpen] = useState(false)
+  const [importDataset,setImportDataset] = useState('inventory')
+  const [inventory,setInventory] = useState<InventoryRow|null>(null)
+  const [proposal,setProposal] = useState<Proposal|null>(null)
+  const [help,setHelp] = useState(false)
+  const [search,setSearch] = useState('')
+  const [toast,setToast] = useState<{message:string;kind:'success'|'error'}|null>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+  const searchWrap = useRef<HTMLDivElement>(null)
+  const loadSequence = useRef(0)
+  const today = new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Ho_Chi_Minh'})
+  const selectedDate = date || data?.as_of || today
+  const notify = useCallback((message:string,kind:'success'|'error'='success') => setToast({message,kind}), [])
+  const load = useCallback(async () => {
+    const sequence = ++loadSequence.current
+    setRefreshing(true)
+    try {
+      const result = await api.workspace(date || undefined)
+      if (sequence === loadSequence.current) {setData(result);setError('')}
+    } catch (error) {if (sequence === loadSequence.current) setError((error as Error).message)}
+    finally {if (sequence === loadSequence.current) {setLoading(false);setRefreshing(false)}}
+  }, [date])
+  useEffect(() => {load()}, [load])
+  useEffect(() => {
+    const handler = () => {setPage(currentPage());setMobile(false);setInventory(null);setProposal(null);setImportOpen(false);setHelp(false);setSearch('');window.scrollTo({top:0,behavior:'instant'})}
+    window.addEventListener('hashchange',handler)
+    return () => window.removeEventListener('hashchange',handler)
+  }, [])
+  useEffect(() => {if (!toast) return;const timer=setTimeout(()=>setToast(null),5500);return()=>clearTimeout(timer)}, [toast])
+  useEffect(() => {
+    function shortcut(event: KeyboardEvent) {
+      const tag=(event.target as HTMLElement).tagName
+      if (event.key==='/'&&!['INPUT','TEXTAREA','SELECT'].includes(tag)) {event.preventDefault();searchRef.current?.focus()}
+      if (event.key==='Escape') {setSearch('');setMobile(false)}
+    }
+    function outside(event:MouseEvent) {if (searchWrap.current&&!searchWrap.current.contains(event.target as Node)) setSearch('')}
+    document.addEventListener('keydown',shortcut);document.addEventListener('mousedown',outside)
+    return()=>{document.removeEventListener('keydown',shortcut);document.removeEventListener('mousedown',outside)}
+  }, [])
+  function navigate(value: Page) {window.location.hash=value;setPage(value);setMobile(false)}
+  async function generate() {
+    if (!data) return
+    setGenerating(true)
+    try {const result=await api.generate(selectedDate,data.settings.operator_name);await load();notify(result.message||`${result.created} purchase request drafts created.`)}
+    catch(error) {notify((error as Error).message,'error')}
+    finally {setGenerating(false)}
+  }
+  const props: PageProps|undefined = data ? {
+    data,date:selectedDate,navigate,refresh:load,notify,
+    openImport:(dataset='inventory')=>{setImportDataset(dataset);setImportOpen(true)},
+    openInventory:setInventory,openRequest:setProposal,generate,generating,
+  } : undefined
   const foundInventory=data?.inventory.filter(row=>`${row.sku} ${row.product_name} ${row.supplier}`.toLowerCase().includes(search.toLowerCase())).slice(0,4)??[]
   const foundRequests=data?.proposals.filter(row=>`${row.id} ${row.sku} ${row.product_name}`.toLowerCase().includes(search.toLowerCase())).slice(0,3)??[]
+
   return <div className="app-shell">
-    {mobile&&<button className="sidebar-backdrop" aria-label="Close navigation" onClick={()=>setMobile(false)}/>}
-    <aside className={`sidebar ${mobile?'sidebar-open':''}`}><div className="sidebar-logo"><Brand/><button className="icon-button mobile-close" onClick={()=>setMobile(false)} aria-label="Close navigation"><X size={19}/></button></div><div className="workspace-card"><span className="workspace-icon"><Building2 size={17}/></span><div><strong>{data?.settings.workspace_name||'Operations workspace'}</strong><small>Procurement & inventory</small></div><span className="workspace-card-dot"/></div><div className="nav-caption">WORKSPACE</div><nav aria-label="Main navigation">{navigation.map(item=><button key={item.id} className={`nav-item ${page===item.id?'active':''} ${item.id==='ai'?'ai-nav':''}`} onClick={()=>navigate(item.id)}><item.icon size={18} strokeWidth={1.8}/><span>{item.label}</span>{item.id==='requests'&&!!data?.proposals.filter(row=>row.status==='DRAFT').length&&<span className="nav-count">{data.proposals.filter(row=>row.status==='DRAFT').length}</span>}{item.id==='ai'&&<span className="nav-local">LOCAL</span>}</button>)}</nav><div className="sidebar-bottom"><div className="sidebar-ai-card"><div><Sparkles size={17}/><span>Intelligence, closer.</span></div><p>A clearer view of your operations.<br/>Powered by your own data.</p><button onClick={()=>navigate('ai')}>Ask your workspace<ArrowUpRight size={13}/></button></div><button className={`nav-item settings-nav ${page==='settings'?'active':''}`} onClick={()=>navigate('settings')}><Settings2 size={18} strokeWidth={1.8}/><span>Settings</span></button><div className="sidebar-user"><span className="avatar">{initials(data?.settings.operator_name||'Workspace User')}</span><div><strong>{data?.settings.operator_name||'Workspace user'}</strong><small>Workspace operator</small></div><button aria-label="Open operator settings" onClick={()=>navigate('settings')}><ChevronRight size={16}/></button></div></div></aside>
-    <div className="main-shell"><header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open navigation" onClick={()=>setMobile(true)}><Menu size={20}/></button><span className="breadcrumb-home">Workspace</span><ChevronRight size={13}/><strong>{pageNames[page]}</strong></div><div className="topbar-actions"><div className="global-search-wrap" ref={searchWrap}><label className="global-search"><Search size={16}/><input ref={searchRef} value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search your workspace…" aria-label="Search your workspace"/><kbd>/</kbd></label>{search&&<div className="search-results"><span className="eyebrow">INVENTORY</span>{foundInventory.map(row=><button key={row.sku} onClick={()=>{setInventory(row);setSearch('')}}><ProductAvatar sku={row.sku}/><span><strong>{row.product_name}</strong><small>{row.sku}</small></span><ArrowUpRight size={14}/></button>)}{foundRequests.length>0&&<span className="eyebrow">PURCHASE REQUESTS</span>}{foundRequests.map(row=><button key={row.id} onClick={()=>{setProposal(row);setSearch('')}}><FileCheck2 size={18}/><span><strong>PR-{String(row.id).padStart(4,'0')} · {row.product_name}</strong><small>{row.status.toLowerCase()}</small></span><ArrowUpRight size={14}/></button>)}{!foundInventory.length&&!foundRequests.length&&<p>No matching products or requests.</p>}</div>}</div><label className="date-control"><CalendarDays size={15}/><input aria-label="Analysis date" type="date" value={selectedDate} max={new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Ho_Chi_Minh'})} onChange={event=>{if(event.target.value)setDate(event.target.value)}}/></label><span className="topbar-divider"/><button className="icon-button help-button" onClick={()=>setHelp(true)} aria-label="About this workspace"><CircleHelp size={19}/></button><button className="profile-button" onClick={()=>navigate('settings')} aria-label="Open profile settings"><span className="avatar small">{initials(data?.settings.operator_name||'User')}</span></button></div></header>
+    {mobile && <button className="sidebar-backdrop" aria-label="Close navigation" onClick={()=>setMobile(false)}/>}
+    <aside className={`sidebar ${mobile?'sidebar-open':''}`}>
+      <div className="sidebar-logo"><Brand/><button className="icon-button mobile-close" onClick={()=>setMobile(false)} aria-label="Close navigation"><X size={19}/></button></div>
+      <div className="workspace-card"><span className="workspace-icon"><Building2 size={18}/></span><div><strong>{data?.settings.workspace_name||'Operations workspace'}</strong><small>Procurement & inventory</small></div></div>
+      <div className="nav-caption">OPERATIONS</div>
+      <nav aria-label="Main navigation">{navigation.map(item=><button key={item.id} aria-current={page===item.id?'page':undefined} className={`nav-item ${page===item.id?'active':''}`} onClick={()=>navigate(item.id)}><item.icon size={18} strokeWidth={1.65}/><span>{item.label}</span>{item.id==='requests'&&!!data?.proposals.filter(row=>row.status==='DRAFT').length&&<span className="nav-count">{data.proposals.filter(row=>row.status==='DRAFT').length}</span>}</button>)}</nav>
+      <div className="sidebar-bottom"><div className="sidebar-workspace-note"><span className="nav-caption">WORKSPACE</span><p>Inventory, purchasing,<br/>and decision records.</p></div><button className={`nav-item settings-nav ${page==='settings'?'active':''}`} onClick={()=>navigate('settings')}><Settings2 size={18} strokeWidth={1.65}/><span>Settings</span></button><div className="sidebar-user"><span className="avatar">{initials(data?.settings.operator_name||'Workspace User')}</span><div><strong>{data?.settings.operator_name||'Workspace user'}</strong><small>Operator</small></div><button aria-label="Open operator settings" onClick={()=>navigate('settings')}><ChevronRight size={16}/></button></div></div>
+    </aside>
+    <div className="main-shell">
+      <header className="topbar">
+        <div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open navigation" onClick={()=>setMobile(true)}><Menu size={20}/></button><span className="breadcrumb-home">Operations</span><ChevronRight size={13}/><strong>{pageNames[page]}</strong></div>
+        <div className="topbar-actions">
+          <div className="global-search-wrap" ref={searchWrap}><label className="global-search"><Search size={16}/><input ref={searchRef} value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search materials or requests" aria-label="Search your workspace"/><kbd>/</kbd></label>{search&&<div className="search-results"><span className="eyebrow">MATERIALS</span>{foundInventory.map(row=><button key={row.sku} onClick={()=>{setInventory(row);setSearch('')}}><ProductAvatar sku={row.sku}/><span><strong>{row.product_name}</strong><small>{row.sku}</small></span><ArrowUpRight size={14}/></button>)}{foundRequests.length>0&&<span className="eyebrow">PURCHASE REQUESTS</span>}{foundRequests.map(row=><button key={row.id} onClick={()=>{setProposal(row);setSearch('')}}><FileCheck2 size={18}/><span><strong>PR-{String(row.id).padStart(4,'0')} · {row.product_name}</strong><small>{row.status.toLowerCase()}</small></span><ArrowUpRight size={14}/></button>)}{!foundInventory.length&&!foundRequests.length&&<p>No matching materials or requests.</p>}</div>}</div>
+          <label className="date-control"><CalendarDays size={15}/><input aria-label="Analysis date" type="date" value={selectedDate} max={today} onChange={event=>{if(event.target.value)setDate(event.target.value)}}/></label>
+          <button className="icon-button help-button" onClick={()=>setHelp(true)} aria-label="About this workspace"><CircleHelp size={19}/></button>
+          <button className="profile-button" onClick={()=>navigate('settings')} aria-label="Open profile settings"><span className="avatar small">{initials(data?.settings.operator_name||'User')}</span></button>
+        </div>
+      </header>
       <main className={`main-content page-${page}`}>
         {refreshing&&!loading&&<div className="refresh-line"/>}
         {error&&data&&<div className="workspace-error" role="alert"><span>{error}</span><button onClick={load}>Retry</button></div>}
-        {loading?<div className="workspace-skeleton"><div className="skeleton heading-skeleton"/><div className="skeleton subtitle-skeleton"/><div className="kpi-grid">{[1,2,3,4].map(item=><div className="skeleton skeleton-card" key={item}/>)}</div><div className="skeleton skeleton-chart"/></div>:!data||!props?<div className="connection-error"><Empty title="Let’s reconnect your workspace" description={error||'The local API is not available. Start the ProcureFlow server and try again.'} icon={<DatabaseIcon/>} action={<Button variant="primary" onClick={load} loading={refreshing}>Try again</Button>}/><p>Local API: <code>http://127.0.0.1:8000</code></p></div>:page==='overview'?<Overview {...props}/>:page==='inventory'?<InventoryPage {...props}/>:page==='requests'?<RequestsPage {...props}/>:page==='suppliers'?<SuppliersPage {...props}/>:page==='ai'?<AIWorkspace {...props}/>:page==='analytics'?<AnalyticsPage {...props}/>:page==='activity'?<ActivityPage {...props}/>:<SettingsPage {...props}/>}
-        <footer className="workspace-footer"><span><span className="synthetic-dot"/>Synthetic workspace data</span><span>ProcureFlow<span className="footer-separator">·</span>Thoughtful operations, connected.</span></footer>
+        {loading?<div className="workspace-skeleton"><div className="skeleton heading-skeleton"/><div className="skeleton subtitle-skeleton"/><div className="kpi-grid">{[1,2,3,4,5].map(item=><div className="skeleton skeleton-card" key={item}/>)}</div><div className="skeleton skeleton-chart"/></div>:!data||!props?<div className="connection-error"><Empty title="Workspace unavailable" description={error||'The local API is not available. Start the ProcureFlow server and try again.'} icon={<Database size={26}/>} action={<Button variant="primary" onClick={load} loading={refreshing}>Try again</Button>}/><p>Local API: <code>http://127.0.0.1:8000</code></p></div>:page==='overview'?<Overview {...props}/>:page==='inventory'?<InventoryPage {...props}/>:page==='requests'?<RequestsPage {...props}/>:page==='suppliers'?<SuppliersPage {...props}/>:page==='ai'?<AIWorkspace {...props}/>:page==='analytics'?<AnalyticsPage {...props}/>:page==='activity'?<ActivityPage {...props}/>:<SettingsPage {...props}/>}
+        <footer className="workspace-footer"><span>Synthetic case-study data</span><button onClick={()=>setHelp(true)}>About this workspace<ChevronRight size={12}/></button></footer>
       </main>
     </div>
     {toast&&<div className={`toast toast-${toast.kind}`} role={toast.kind==='error'?'alert':'status'}><span>{toast.kind==='success'?<Check size={17}/>:<X size={17}/>}</span><p>{toast.message}</p><button onClick={()=>setToast(null)} aria-label="Dismiss notification"><X size={15}/></button></div>}
     {props&&importOpen&&<ImportDialog {...props} initialDataset={importDataset} onClose={()=>setImportOpen(false)}/>}
     {props&&inventory&&<InventoryDrawer key={inventory.sku} {...props} row={inventory} onClose={()=>setInventory(null)}/>}
     {props&&proposal&&<RequestDrawer key={proposal.id} {...props} row={proposal} onClose={()=>setProposal(null)}/>}
-    {help&&<Modal title="A clearer way to operate" description="ProcureFlow connects inventory, purchasing, and your local AI workspace." onClose={()=>setHelp(false)}><div className="about-content"><Brand/><p>Every recommendation is calculated with deterministic Python rules. AI helps explain your data; humans review and approve purchase requests.</p><div className="form-info"><ShieldCheck size={18}/><span>Local storage. Required review reasons. Traceable decisions. No supplier orders or payments are sent.</span></div><p className="muted">Academic case study using synthetic data. Not affiliated with or endorsed by Trung Nguyen Legend or Bosch. Manual operator names are not authenticated accounts.</p><Button variant="primary" onClick={()=>setHelp(false)}>Back to workspace</Button></div></Modal>}
+    {help&&<Modal title="About ProcureFlow" description="Inventory and procurement operations workspace." onClose={()=>setHelp(false)}><div className="about-content"><Brand/><p>Numerical recommendations follow a documented Python policy. The Operational Assistant provides read-only explanations; reviewers approve or reject purchase requests.</p><div className="form-info"><ShieldCheck size={18}/><span>Local storage, required review reasons, and persistent decision records. No supplier orders or payments are sent.</span></div><p className="muted">Academic prototype using synthetic data. Not affiliated with or endorsed by Trung Nguyen Legend or Bosch. Manual operator names are not authenticated accounts. ProcureFlow uses a neutral product identity; no official enterprise logo is included.</p><Button variant="primary" onClick={()=>setHelp(false)}>Close</Button></div></Modal>}
   </div>
 }
-function DatabaseIcon(){return <LayersIcon/>}
-function LayersIcon(){return <Package size={26}/>}

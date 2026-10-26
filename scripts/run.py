@@ -24,11 +24,20 @@ def model_is_running() -> bool:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--port', type=int, default=8000)
+    parser.add_argument('--port', type=int, default=None, help='Web port: 8002 for the separate coffee workspace, otherwise 8000')
     parser.add_argument('--without-model', action='store_true', help='Use the offline business tools without LLM inference')
+    parser.add_argument('--coffee', action='store_true', help='Open the separate synthetic coffee workspace; preserve the default database')
     args = parser.parse_args()
+    port = args.port if args.port is not None else (8002 if args.coffee else 8000)
     os.chdir(ROOT)
     load_dotenv(ROOT / '.env')
+    if args.coffee:
+        from scripts.seed_coffee import seed_coffee
+        coffee_path = ROOT / 'outputs' / 'coffee-workspace.db'
+        if not coffee_path.exists():
+            seed_coffee(coffee_path)
+        os.environ['PROCUREFLOW_DB_PATH'] = str(coffee_path)
+        print('Opening the separate synthetic coffee workspace. The default database is unchanged.', flush=True)
     if not (ROOT / 'frontend' / 'dist' / 'index.html').is_file():
         raise SystemExit('Build the interface first: cd frontend; npm.cmd install; npm.cmd run build')
     process, logfile = None, None
@@ -59,10 +68,10 @@ def main() -> None:
                 print('Local model is not ready; business tools remain available. See outputs/local-ai.log.', flush=True)
         elif not server or not model.is_file():
             print('Local business agent is ready. Install the optional model with: python -m scripts.setup_local_ai', flush=True)
-    print(f'ProcureFlow workspace: http://127.0.0.1:{args.port}', flush=True)
+    print(f'ProcureFlow workspace: http://127.0.0.1:{port}', flush=True)
     try:
         import uvicorn
-        uvicorn.run('src.api:app', host='127.0.0.1', port=args.port, log_level='info')
+        uvicorn.run('src.api:app', host='127.0.0.1', port=port, log_level='info')
     finally:
         if process is not None and process.poll() is None:
             process.terminate()

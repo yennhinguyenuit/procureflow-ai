@@ -1,17 +1,23 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
-import { ArrowUpRight, Check, ChevronDown, LoaderCircle, Package, X } from 'lucide-react'
+import { ArrowUpRight, Check, ChevronDown, Info, LoaderCircle, Package, X } from 'lucide-react'
 import type { InventoryRow, Risk } from './types'
 
 export const number = (value: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(value ?? 0)
 export const compact = (value: number) => new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(value ?? 0)
-export const money = (value: number) => `${number(value)} ₫`
-export const shortMoney = (value: number) => `${compact(value)} ₫`
-export const displayDate = (value: string, options?: Intl.DateTimeFormatOptions) => new Date(value.length === 10 ? `${value}T12:00:00` : value).toLocaleDateString('en-GB', options ?? {day: 'numeric', month: 'short', year: 'numeric'})
+export const money = (value: number) => `${new Intl.NumberFormat('en-US', {maximumFractionDigits: 0}).format(value ?? 0)} VND`
+export const shortMoney = (value: number) => `${compact(value)} VND`
+export const unitOf = (row: {unit_of_measure?: string}) => row.unit_of_measure?.trim() || 'unit'
+export const categoryOf = (row: {category?: string}) => row.category?.trim() || 'Unclassified'
+export const quantity = (value: number, row: {unit_of_measure?: string}) => `${number(value)} ${unitOf(row)}`
+export const displayDate = (value: string, options?: Intl.DateTimeFormatOptions) => new Date(value.length === 10 ? `${value}T12:00:00` : value).toLocaleDateString('en-GB', {timeZone:'Asia/Ho_Chi_Minh', ...(options ?? {day: 'numeric', month: 'short', year: 'numeric'})})
+export const businessDate = (value: string) => new Date(value).toLocaleDateString('en-CA', {timeZone:'Asia/Ho_Chi_Minh'})
 export const initials = (value: string) => value.replace(/_/g, ' ').split(/\s+/).filter(Boolean).slice(0, 2).map(item => item[0]).join('').toUpperCase()
 
 export function Brand({compact: small}: {compact?: boolean}) {
-  return <div className="brand"><span className="brand-mark"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M7 9.5 16 4l9 5.5-9 5.4L7 9.5Z" fill="white"/><path d="m7 15.7 9 5.4 9-5.4M7 22l9 5.4 9-5.4" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></span>{!small && <span>procureflow<span className="brand-period">.</span></span>}</div>
+  const asset = import.meta.env.VITE_AUTHORIZED_BRAND_ASSET || ''
+  const authorized = import.meta.env.VITE_BRAND_ASSET_AUTHORIZED === 'true' && /^\/brand\/[A-Za-z0-9][A-Za-z0-9._-]*\.(svg|png|webp)$/.test(asset)
+  return <div className="brand">{authorized && <img className="authorized-brand-asset" src={asset} alt="Authorized workspace brand"/>}<span className="brand-mark" aria-hidden="true">P<span>F</span></span>{!small && <span>ProcureFlow</span>}</div>
 }
 
 export function Button({children, icon, loading, variant = 'secondary', className = '', ...props}: ButtonHTMLAttributes<HTMLButtonElement> & {icon?: ReactNode; loading?: boolean; variant?: 'primary' | 'secondary' | 'ghost' | 'danger'; children: ReactNode}) {
@@ -19,7 +25,7 @@ export function Button({children, icon, loading, variant = 'secondary', classNam
 }
 
 export function Badge({value}: {value: string}) {
-  const colors: Record<string, string> = {'Critical Stock':'red','Low Stock':'amber','Normal':'green','Data Quality Issue':'purple','DRAFT':'amber','APPROVED':'green','REJECTED':'neutral','OPEN':'amber','RESOLVED':'green'}
+  const colors: Record<string, string> = {'Critical Stock':'red','Low Stock':'amber','Normal':'green','Data Quality Issue':'neutral','DRAFT':'amber','APPROVED':'green','REJECTED':'neutral','OPEN':'amber','RESOLVED':'green'}
   const labels: Record<string, string> = {'Critical Stock':'Critical','Low Stock':'Low stock','Normal':'Healthy','Data Quality Issue':'Needs data','DRAFT':'Pending review','APPROVED':'Approved','REJECTED':'Rejected','OPEN':'Open','RESOLVED':'Resolved'}
   return <span className={`badge badge-${colors[value] ?? 'neutral'}`}><span className="badge-dot"/>{labels[value] ?? value}</span>
 }
@@ -68,6 +74,11 @@ export function PageHeader({title, description, children, eyebrow}: {title: stri
 }
 
 export function InlineError({error}: {error: string}) { return error ? <div className="inline-error" role="alert">{error}</div> : null }
+export function FieldTooltip({label,description}:{label:string;description:string}) {
+  const [open,setOpen]=useState(false)
+  const id=useId()
+  return <span className="field-tooltip" onMouseEnter={()=>setOpen(true)} onMouseLeave={()=>setOpen(false)}><button type="button" aria-label={`About ${label}`} aria-describedby={open?id:undefined} onFocus={()=>setOpen(true)} onBlur={()=>setOpen(false)} onClick={()=>setOpen(!open)} onKeyDown={event=>{if(event.key==='Escape'){event.stopPropagation();setOpen(false)}}}><Info size={12}/></button>{open&&<span id={id} role="tooltip" className="field-tooltip-bubble">{description}</span>}</span>
+}
 export function RiskNote({risk}: {risk: Risk}) { return <Badge value={risk}/> }
 export function RowLink({onClick, label}: {onClick: () => void; label: string}) { return <button className="row-link" aria-label={label} onClick={onClick}><ArrowUpRight size={16}/></button> }
 export function Saved({children}: {children: ReactNode}) { return <span className="saved-label"><Check size={13}/>{children}</span> }

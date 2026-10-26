@@ -67,7 +67,18 @@ def init_db(conn: Connection) -> None:
     with conn:
         if product_columns and 'reserved_qty' not in product_columns:
             conn.execute('ALTER TABLE products ADD COLUMN reserved_qty INTEGER NOT NULL DEFAULT 0 CHECK(reserved_qty >= 0)')
+        metadata_columns = {
+            'category': "TEXT NOT NULL DEFAULT 'Unclassified' CHECK(length(category) BETWEEN 1 AND 100)",
+            'unit_of_measure': "TEXT NOT NULL DEFAULT 'unit' CHECK(unit_of_measure IN ('unit','piece','kg','carton','roll'))",
+            'origin': "TEXT NOT NULL DEFAULT '' CHECK(length(origin) <= 120)",
+            'quality_notes': "TEXT NOT NULL DEFAULT '' CHECK(length(quality_notes) <= 500)",
+        }
+        for name, definition in metadata_columns.items():
+            if product_columns and name not in product_columns:
+                conn.execute(f'ALTER TABLE products ADD COLUMN {name} {definition}')
         additions = {
+            'category': "TEXT NOT NULL DEFAULT 'Unclassified'",
+            'unit_of_measure': "TEXT NOT NULL DEFAULT 'unit'",
             'target_stock': 'INTEGER NOT NULL DEFAULT 0',
             'unit_cost_vnd': 'INTEGER NOT NULL DEFAULT 0',
             'supplier': "TEXT NOT NULL DEFAULT ''", 'snapshot_json': 'TEXT',

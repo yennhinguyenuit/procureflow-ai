@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 from typing import Any, Iterator, Literal
+from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -157,7 +158,9 @@ def create_app(db_path: str | Path | None = None, static_dir: str | Path | None 
     @application.middleware('http')
     async def local_origin(request: Request, call_next):
         origin = request.headers.get('origin')
-        if request.method in {'POST', 'PUT', 'PATCH', 'DELETE'} and origin and origin not in _LOCAL_ORIGINS:
+        own_origin = str(request.base_url).rstrip('/')
+        same_local_origin = (origin == own_origin and urlsplit(own_origin).hostname in {'127.0.0.1', 'localhost', '::1'})
+        if request.method in {'POST', 'PUT', 'PATCH', 'DELETE'} and origin and origin not in _LOCAL_ORIGINS and not same_local_origin:
             return JSONResponse({'detail': 'This local workspace accepts browser changes only from its local app.'}, status_code=403)
         return await call_next(request)
 

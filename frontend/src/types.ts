@@ -1,6 +1,7 @@
 export type Page = 'overview' | 'inventory' | 'requests' | 'suppliers' | 'ai' | 'analytics' | 'activity' | 'settings'
 export type Risk = 'Critical Stock' | 'Low Stock' | 'Normal' | 'Data Quality Issue'
 export interface InventoryRow {
+  category?: string; unit_of_measure?: string; origin?: string; quality_notes?: string;
   sku: string; product_name: string; supplier: string; on_hand: number; on_order: number; reserved_qty: number;
   available_stock: number; safety_stock: number; lead_time_days: number; pack_size: number; unit_cost_vnd: number;
   avg_daily_demand: number; inventory_position: number; reorder_point: number; target_stock: number;
@@ -8,6 +9,8 @@ export interface InventoryRow {
   sales_days_observed: number; data_quality_issue?: string; units_last_window: number;
 }
 export interface Proposal {
+  category?: string; unit_of_measure?: string;
+  snapshot_json?: string;
   id: number; sku: string; product_name: string; supplier: string; quantity: number; estimated_cost_vnd: number;
   unit_cost_vnd: number; status: 'DRAFT' | 'APPROVED' | 'REJECTED'; reason: string;
   created_at: string; decided_at?: string; decided_by?: string; comment?: string;

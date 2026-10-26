@@ -197,7 +197,10 @@ def test_invalid_or_inconsistent_model_plans_fall_back_honestly(db, monkeypatch,
 
 
 @pytest.mark.parametrize('question', ['Approve CF-001 now', 'DELETE FROM products',
-                                      'Phê duyệt CF-001 ngay', 'Tạo draft CF-001'])
+                                      'Phê duyệt CF-001 ngay', 'Tạo draft CF-001',
+                                      'Change inventory CF-001 to 100',
+                                      'Cập nhật tồn kho CF-001 thành 100',
+                                      'tao ban nhap CF001'])
 def test_write_requests_never_run_model_or_business_write(db, monkeypatch, question):
     model = Mock(side_effect=AssertionError('No model should run for a write request'))
     monkeypatch.setattr(agent, '_infer_plan', model)
@@ -311,3 +314,130 @@ def test_chat_refuses_to_commit_a_pending_business_transaction(db):
     assert db.in_transaction
     db.rollback()
     assert db.execute("SELECT on_hand FROM products WHERE sku='CF-001'").fetchone()[0] == 26
+
+
+@pytest.mark.parametrize('question,intent', [
+    ('Giá', 'budget'), ('gia', 'budget'), ('Bao nhiêu tiền?', 'budget'),
+    ('Chi phí?', 'budget'), ('Còn hàng không?', 'inventory'),
+    ('Tại sao phải nhập thêm?', 'why_reorder'), ('Nhà cung cấp nào?', 'suppliers'),
+])
+@pytest.mark.parametrize('context_sku', [None, 'CF-001'])
+def test_short_vietnamese_questions_use_precise_intents_and_language(question, intent, context_sku):
+    assert agent._route(question, context_sku) == intent
+    assert agent._language(question) == 'vi'
+
+
+@pytest.mark.parametrize('question,intent', [
+    ('Giao hàng?', 'suppliers'), ('giao hang', 'suppliers'),
+    ('Giải thích CF001', 'why_reorder'), ('giai thich CF001', 'why_reorder'),
+    ('forecast', 'demand'), ('costume', 'inventory'),
+])
+def test_price_keyword_uses_whole_tokens_not_substrings(question, intent):
+    assert agent._route(question, 'CF-001') == intent
+    assert agent._route(question, 'CF-001') != 'budget'
+
+
+@pytest.mark.parametrize('question', ['Giá', 'gia', 'Bao nhiêu tiền?', 'Chi phí?'])
+def test_short_price_followups_keep_sku_and_report_unit_cost_from_database(db, question):
+    first = agent.chat(db, 'Why reorder CF001?', as_of=AS_OF)
+    before = _business_state(db)
+
+    followup = agent.chat(db, question, first['conversation_id'])
+
+    assert followup['mode'] == 'local_tools'
+    assert 'đơn giá tham chiếu 175,000 VND/đơn vị' in followup['answer']
+    assert 'Phạm vi CF-001' in followup['answer']
+    metadata = agent.get_messages(db, first['conversation_id'])[-1]['metadata']
+    assert metadata['intent'] == 'budget' and metadata['context_sku'] == 'CF-001'
+    assert followup['sources'][-1]['label'] == 'Reference unit cost'
+    assert _business_state(db) == before
+
+
+@pytest.mark.parametrize('question', ['Giá', 'Bao nhiêu tiền?', 'Chi phí?'])
+def test_price_without_context_truthfully_labels_workspace_budget(db, question):
+    total = sum(row['estimated_cost_vnd'] for row in get_replenishment_table(db, AS_OF))
+
+    result = agent.chat(db, question, as_of=AS_OF)
+
+    assert 'Chưa chọn SKU' in result['answer']
+    assert 'ngân sách bổ sung toàn workspace' in result['answer']
+    assert f'{total:,} VND' in result['answer']
+    assert agent.get_messages(db, result['conversation_id'])[-1]['metadata']['context_sku'] is None
+
+
+def test_stock_availability_and_why_without_context_are_specific_and_grounded(db):
+    inventory = agent.chat(db, 'Còn hàng không?', as_of=AS_OF)
+    assert 'còn 21 đơn vị khả dụng' in inventory['answer']
+    assert agent.get_messages(db, inventory['conversation_id'])[-1]['metadata']['intent'] == 'inventory'
+
+    explanation = agent.chat(db, 'Tại sao phải nhập thêm?', as_of=AS_OF)
+    assert 'Bạn chưa chọn SKU' in explanation['answer']
+    assert 'đề xuất có giá trị cao nhất' in explanation['answer']
+    assert agent.get_messages(db, explanation['conversation_id'])[-1]['metadata']['intent'] == 'why_reorder'
+
+
+@pytest.mark.parametrize('written_sku', ['CF001', 'cf_001', 'cf 001', 'cf   001'])
+def test_compact_underscore_and_spaced_skus_share_canonical_context(db, written_sku):
+    result = agent.chat(db, f'Giá {written_sku}?', as_of=AS_OF)
+
+    assert 'Phạm vi CF-001' in result['answer']
+    assert agent.get_messages(db, result['conversation_id'])[-1]['metadata']['context_sku'] == 'CF-001'
+
+
+@pytest.mark.parametrize('question,intent', [
+    ('Giá', 'budget'), ('gia', 'budget'), ('Bao nhiêu tiền?', 'budget'),
+    ('Chi phí?', 'budget'), ('Còn hàng không?', 'inventory'),
+    ('Tại sao phải nhập thêm?', 'why_reorder'), ('Nhà cung cấp nào?', 'suppliers'),
+])
+def test_short_vietnamese_followups_accept_valid_local_model_plans(db, monkeypatch, question, intent):
+    first = agent.chat(db, 'Why reorder CF-001?', as_of=AS_OF)
+    calls = _mock_runtime(monkeypatch, {'intent': intent, 'sku': 'CF-001', 'language': 'vi'})
+
+    result = agent.chat(db, question, first['conversation_id'])
+
+    assert result['mode'] == 'local_model'
+    planner_input = json.loads(json.loads(calls[0].content)['messages'][-1]['content'])
+    assert planner_input['intent_hint'] == intent
+    assert planner_input['language_hint'] == 'vi'
+    assert planner_input['context_sku'] == 'CF-001'
+    metadata = agent.get_messages(db, result['conversation_id'])[-1]['metadata']
+    assert metadata['intent'] == intent and metadata['context_sku'] == 'CF-001'
+
+
+def test_model_cannot_guess_a_sku_for_an_unscoped_price_question(db, monkeypatch):
+    _mock_runtime(monkeypatch, {'intent': 'budget', 'sku': 'CF-001', 'language': 'vi'})
+
+    result = agent.chat(db, 'Giá', as_of=AS_OF)
+
+    assert result['mode'] == 'local_model'
+    assert 'ngân sách bổ sung toàn workspace' in result['answer']
+    assert agent.get_messages(db, result['conversation_id'])[-1]['metadata']['context_sku'] is None
+    assert all(source.get('sku') is None for source in result['sources'])
+
+
+@pytest.mark.parametrize('unit', ['kg', 'piece', 'carton', 'roll'])
+def test_coffee_material_metadata_controls_quantity_cost_and_demand_units(db, unit):
+    with db:
+        db.execute('''INSERT INTO products
+            (sku,product_name,supplier,on_hand,on_order,reserved_qty,lead_time_days,
+             safety_stock,pack_size,unit_cost_vnd,category,unit_of_measure,origin,quality_notes)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+            ('COFFEE-MAT', 'Synthetic coffee material', 'Demo supplier Alpha', 55, 0, 5,
+             5, 20, 20, 1000, 'Coffee materials', unit, 'Vietnam', 'Synthetic demonstration'))
+        db.execute('INSERT INTO sales(sale_date,sku,units) VALUES(?,?,?)',
+                   (AS_OF.isoformat(), 'COFFEE-MAT', 140))
+
+    explanation = agent.chat(db, 'Why reorder COFFEE-MAT?', as_of=AS_OF)
+    assert f'Material consumption 140 {unit}' in explanation['answer']
+    assert f'Recommended quantity 60 {unit}' in explanation['answer']
+    assert f'unit={unit}' in explanation['sources'][0]['detail']
+
+    price = agent.chat(db, 'Giá', explanation['conversation_id'])
+    assert f'1,000 VND/{unit}' in price['answer']
+    assert f'lượng bổ sung 60 {unit}' in price['answer']
+    assert f'VND/{unit}' in price['sources'][-1]['detail']
+
+    demand = agent.chat(db, 'Show demand trends', explanation['conversation_id'])
+    assert 'Recorded material withdrawals by SKU' in demand['answer']
+    assert f'last 14 days 140 {unit}' in demand['answer']
+    assert demand['sources'][0]['label'] == 'Material withdrawal history'

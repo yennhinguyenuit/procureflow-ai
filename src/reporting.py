@@ -60,7 +60,8 @@ def report_fields(dataset: str) -> list[str]:
     if dataset in REPORT_TABLES:
         return [column.name for column in Base.metadata.tables[dataset].columns]
     if dataset == 'replenishment':
-        return ['assessment_date', 'sku', 'product_name', 'supplier', 'risk', 'on_hand', 'on_order',
+        return ['assessment_date', 'sku', 'product_name', 'category', 'unit_of_measure',
+                'origin', 'quality_notes', 'supplier', 'risk', 'on_hand', 'on_order',
                 'reserved_qty', 'safety_stock', 'lead_time_days', 'avg_daily_demand',
                 'inventory_position', 'reorder_point', 'target_stock', 'quantity',
                 'estimated_cost_vnd', 'demand_change_pct']

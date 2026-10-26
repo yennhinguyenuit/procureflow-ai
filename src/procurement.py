@@ -55,6 +55,10 @@ def calculate_replenishment(product: dict[str, Any], units_last_window: int,
     return {
         'sku': product.get('sku', ''), 'product_name': product.get('product_name', ''),
         'supplier': product.get('supplier', ''), **values, 'reserved_qty': reserved,
+        'category': product.get('category', 'Unclassified'),
+        'unit_of_measure': product.get('unit_of_measure', 'unit'),
+        'origin': product.get('origin', ''),
+        'quality_notes': product.get('quality_notes', ''),
         'available_stock': available, 'avg_daily_demand': round(daily, 3),
         'units_last_window': units_last_window,
         'inventory_position': position, 'reorder_point': reorder_point,
@@ -161,10 +165,11 @@ def create_drafts(conn: Connection, as_of: date | None = None, actor: str = 'pol
             snapshot = {**row, 'as_of': as_of.isoformat()}
             cursor = conn.execute('''INSERT INTO proposals
                 (sku,avg_daily_demand,inventory_position,reorder_point,target_stock,quantity,
-                 unit_cost_vnd,supplier,snapshot_json,max_quantity,max_value_vnd,reason,created_at)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                 unit_cost_vnd,supplier,category,unit_of_measure,snapshot_json,max_quantity,max_value_vnd,reason,created_at)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
                 (sku, row['avg_daily_demand'], row['inventory_position'], row['reorder_point'],
                  row['target_stock'], row['quantity'], row['unit_cost_vnd'], row['supplier'],
+                 row['category'], row['unit_of_measure'],
                  json.dumps(snapshot, sort_keys=True), max_quantity, max_value_vnd, reason, now_utc()))
             _audit(conn, 'CREATED', actor.strip(), 'Rule-based draft generated', cursor.lastrowid,
                    after={'status': 'DRAFT', **snapshot})
@@ -174,6 +179,7 @@ def create_drafts(conn: Connection, as_of: date | None = None, actor: str = 'pol
 
 def get_proposals(conn: Connection) -> list[dict[str, Any]]:
     return [dict(r) for r in conn.execute('''SELECT p.*, pr.product_name,
+        pr.origin, pr.quality_notes,
         p.quantity * p.unit_cost_vnd AS estimated_cost_vnd
         FROM proposals p JOIN products pr ON p.sku=pr.sku ORDER BY p.id DESC''')]
 
@@ -208,7 +214,9 @@ def decide(conn: Connection, proposal_id: int, decision: str,
                 keys = ('on_hand', 'on_order', 'reserved_qty', 'supplier', 'unit_cost_vnd',
                         'quantity', 'inventory_position', 'reorder_point', 'target_stock',
                         'units_last_window', 'lead_time_days', 'safety_stock', 'pack_size')
-                if current is None or current['data_quality_issue'] or any(current[k] != snapshot[k] for k in keys):
+                if (current is None or current['data_quality_issue']
+                        or any(current[k] != snapshot[k] for k in keys)
+                        or current['unit_of_measure'] != snapshot.get('unit_of_measure', 'unit')):
                     error = 'Inventory, demand, supplier, or policy changed. Reject this stale draft and generate a new one.'
                 elif proposal['quantity'] > (proposal['max_quantity'] or MAX_ORDER_QUANTITY) or proposal['quantity'] * proposal['unit_cost_vnd'] > (proposal['max_value_vnd'] or MAX_ORDER_VALUE_VND):
                     error = 'Draft exceeds the simulated approval limit'

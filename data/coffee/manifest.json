@@ -1,0 +1,14 @@
+{
+  "synthetic": true,
+  "as_of": "2026-10-26",
+  "materials": 12,
+  "suppliers": 6,
+  "history_days": 84,
+  "usage_rows": 1008,
+  "source_signal": "fictional material withdrawals stored in the existing sales schema",
+  "units": "Integer base units only; kg quantities are whole kilograms. No mass conversion, yield or BOM engine.",
+  "inventory_history": "Synthetic end-of-day depletion without receipts; not measured company history.",
+  "quality_notes": "Illustrative review reminders; not numerical acceptance standards or certification claims.",
+  "commercial_values": "All suppliers, contacts, costs, lead times, balances and usage are fictional.",
+  "non_affiliation": "Academic prototype using synthetic data. Not affiliated with or endorsed by Trung Nguyen Legend."
+}

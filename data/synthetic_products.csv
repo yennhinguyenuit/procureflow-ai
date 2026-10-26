@@ -1,0 +1,7 @@
+﻿sku,product_name,supplier,lead_time_days,safety_stock,pack_size,unit_cost_vnd
+CF-001,Coffee beans 1 kg,Demo supplier Alpha,5,18,10,175000
+CF-002,Ground coffee 500 g,Demo supplier Beta,4,20,12,80000
+PK-003,Drip filter packs,Demo supplier Gamma,7,25,20,40000
+PK-004,Packaging cartons,Demo supplier Alpha,3,40,25,11000
+RM-005,Raw coffee blend,Demo supplier Beta,9,20,10,255000
+SP-006,Seasonal sample kit,Demo supplier Gamma,3,5,5,50000

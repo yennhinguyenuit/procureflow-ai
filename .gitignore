@@ -1,0 +1,32 @@
+# Credentials and local machine settings
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+# Local mutable data (synthetic data is generated at startup)
+*.db
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+# Generated files and operating system
+outputs/
+*.log
+.coverage
+htmlcov/
+.DS_Store
+Thumbs.db
+# Frontend build tools and local model assets
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+runtime/
+models/
+*.gguf
